@@ -22,6 +22,11 @@ let cachedLocationHint:
 
 /** The bindings Cloudflare hands the Worker and its Durable Objects, with the deployment's configuration. */
 export interface WorkerBindings extends EnvConfig, JobQueueBindings {
+  RAIL3_ACCESS_REQUIRED?: string;
+  RAIL3_ACCESS_ISSUER?: string;
+  RAIL3_CONTROL_AUDIENCE?: string;
+  RAIL3_WEBHOOK_AUDIENCE?: string;
+  RAIL3_WEBHOOK_PATH?: string;
   SESSION: DurableObjectNamespace;
   SESSION_DO_LOCATION_HINT?: string; // Placement hint for newly created session Durable Objects
   REPOS_CACHE: KVNamespace;
@@ -77,5 +82,5 @@ export function createCloudflareEnv(bindings: WorkerBindings): Env {
 type _AssertExtends<A extends B, B> = A;
 type _BindingsAreConfigOrPlatform = _AssertExtends<
   Exclude<keyof WorkerBindings, keyof Platform | keyof JobQueueBindings>,
-  keyof EnvConfig | "SESSION_DO_LOCATION_HINT"
+  keyof EnvConfig | "SESSION_DO_LOCATION_HINT" | `RAIL3_${string}`
 >;

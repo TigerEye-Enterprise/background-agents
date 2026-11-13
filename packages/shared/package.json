@@ -10,6 +10,10 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
+    "./cloudflare-access": {
+      "import": "./dist/cloudflare-access.js",
+      "types": "./dist/cloudflare-access.d.ts"
+    },
     "./auth": {
       "import": "./dist/auth.js",
       "types": "./dist/auth.d.ts"
@@ -281,6 +285,7 @@
   "dependencies": {
     "@octokit/webhooks-types": "^7.6.1",
     "cron-parser": "^5.10.2",
+    "jose": "6.2.15",
     "zod": "^4.6.7"
   }
 }

@@ -29,10 +29,13 @@ resource "null_resource" "control_plane_build" {
 module "control_plane_worker" {
   source = "../../modules/cloudflare-worker"
 
-  account_id       = var.cloudflare_account_id
-  worker_name      = "open-inspect-control-plane-${local.name_suffix}"
-  worker_subdomain = var.cloudflare_worker_subdomain
-  script_path      = local.control_plane_script_path
+  account_id                = var.cloudflare_account_id
+  worker_name               = "open-inspect-control-plane-${local.name_suffix}"
+  worker_subdomain          = var.cloudflare_worker_subdomain
+  script_path               = local.control_plane_script_path
+  zone_id                   = var.rail3_access == null ? null : var.cloudflare_zone_id
+  custom_domain             = var.rail3_access == null ? null : var.rail3_access.control_plane_hostname
+  disable_public_subdomains = var.rail3_access != null
 
   kv_namespaces = {
     REPOS_CACHE = {
@@ -105,6 +108,13 @@ module "control_plane_worker" {
       SANDBOX_BOOT_TIMEOUT_MS                  = { value = tostring(var.sandbox_boot_timeout_ms) }
       TEAMS_ENFORCEMENT                        = { value = var.teams_enforcement }
     },
+    var.rail3_access != null ? {
+      RAIL3_ACCESS_REQUIRED  = { value = "true" }
+      RAIL3_ACCESS_ISSUER    = { value = var.rail3_access.issuer }
+      RAIL3_CONTROL_AUDIENCE = { value = var.rail3_access.control_audience }
+      RAIL3_WEBHOOK_AUDIENCE = { value = var.rail3_access.webhook_audience }
+      RAIL3_WEBHOOK_PATH     = { value = var.rail3_access.webhook_path }
+    } : {},
     var.session_do_location_hint != "" ? {
       SESSION_DO_LOCATION_HINT = { value = var.session_do_location_hint }
     } : {},
@@ -244,6 +254,7 @@ module "control_plane_worker" {
 
   # Base artifacts are verified before the Worker switches its provider references.
   depends_on = [
+    terraform_data.rail3_ingress,
     null_resource.control_plane_build,
     module.session_index_kv,
     null_resource.d1_migrations,

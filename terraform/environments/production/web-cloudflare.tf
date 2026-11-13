@@ -57,7 +57,7 @@ resource "local_file" "web_app_wrangler_production" {
   filename = "${var.project_root}/packages/web/wrangler.production.toml"
   content  = <<-TOML
     name = "${local.web_worker_name}"
-    main = ".open-next/worker.js"
+    main = "${var.rail3_access == null ? ".open-next/worker.js" : "rail3-worker.mjs"}"
     compatibility_date = "2025-08-15"
     compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
     # Keep-names makes esbuild emit __name() calls, which leak into next-themes'
@@ -66,8 +66,11 @@ resource "local_file" "web_app_wrangler_production" {
 
     # A custom-domain deployment has one canonical browser origin.
     workers_dev = ${local.web_custom_domain_enabled ? "false" : "true"}
+    ${var.rail3_access != null ? "preview_urls = false" : ""}
 
     [vars]
+    ${var.rail3_access != null ? "RAIL3_ACCESS_ISSUER = ${jsonencode(var.rail3_access.issuer)}" : ""}
+    ${var.rail3_access != null ? "RAIL3_WEB_AUDIENCE = ${jsonencode(var.rail3_access.web_audience)}" : ""}
     CONTROL_PLANE_URL = "${local.control_plane_url}"
     NEXT_PUBLIC_WS_URL = "${local.ws_url}"
     NEXT_PUBLIC_SANDBOX_PROVIDER = "${var.sandbox_provider}"
@@ -77,10 +80,12 @@ resource "local_file" "web_app_wrangler_production" {
     [assets]
     directory = ".open-next/assets"
     binding = "ASSETS"
+    ${var.rail3_access != null ? "run_worker_first = true" : ""}
 
     [[services]]
     binding = "CONTROL_PLANE_WORKER"
     service = "open-inspect-control-plane-${local.name_suffix}"
+    ${var.rail3_access != null ? "entrypoint = ${jsonencode("Rail3WebInternal")}" : ""}
   TOML
 }
 

@@ -22,7 +22,7 @@ locals {
   unsafe_allow_all_effective  = var.unsafe_allow_all_users && !local.admission_allowlist_enabled
 
   # URLs for cross-service configuration
-  control_plane_host = "open-inspect-control-plane-${local.name_suffix}.${var.cloudflare_worker_subdomain}.workers.dev"
+  control_plane_host = var.rail3_access == null ? "open-inspect-control-plane-${local.name_suffix}.${var.cloudflare_worker_subdomain}.workers.dev" : var.rail3_access.control_plane_hostname
   control_plane_url  = "https://${local.control_plane_host}"
   ws_url             = "wss://${local.control_plane_host}"
 
