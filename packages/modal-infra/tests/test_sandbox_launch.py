@@ -711,3 +711,26 @@ async def test_launch_rejects_boolean_tunnel_ports(monkeypatch, restore, ports, 
     assert handle.tunnel_urls == (urls or None)
     if not expected:
         sandbox.tunnels.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_rail3_sidecar_receives_only_its_own_named_secret_and_destination(monkeypatch):
+    from src.sandbox.launch import SandboxLauncher
+
+    create = AsyncMock()
+    sidecars = SimpleNamespace(create=SimpleNamespace(aio=create))
+    sandbox = SimpleNamespace(_experimental_sidecars=sidecars)
+    image = object()
+    credential = object()
+    monkeypatch.setattr("src.sandbox.launch.modal.Image.from_id", lambda value: image)
+    monkeypatch.setattr("src.sandbox.launch.modal.Secret.from_name", lambda value: credential)
+    await SandboxLauncher._attach_rail3_sidecar(
+        sandbox, origin="https://control.example", session_id="session-1", image_id="im-verified"
+    )
+    kwargs = create.await_args.kwargs
+    assert kwargs["outbound_domain_allowlist"] == ["control.example"]
+    assert kwargs["secrets"] == [credential]
+    assert kwargs["env"] == {
+        "RAIL3_CONTROL_ORIGIN": "https://control.example",
+        "RAIL3_SESSION_ID": "session-1",
+    }

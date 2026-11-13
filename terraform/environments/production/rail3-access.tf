@@ -24,6 +24,12 @@ variable "rail3_access" {
   }
 }
 
+variable "rail3_access_sidecar_image_id" {
+  description = "Verified prebuilt Modal image ID for the Rail 3 Access sidecar."
+  type        = string
+  default     = ""
+}
+
 resource "terraform_data" "rail3_ingress" {
   count = var.rail3_access == null ? 0 : 1
 
@@ -31,10 +37,12 @@ resource "terraform_data" "rail3_ingress" {
     precondition {
       condition = (
         local.web_custom_domain_enabled &&
+        var.sandbox_provider == "modal-vm" &&
+        can(regex("^im-[A-Za-z0-9]+$", var.rail3_access_sidecar_image_id)) &&
         !endswith(lower(local.web_custom_domain), ".workers.dev") &&
         lower(local.web_custom_domain) != var.rail3_access.control_plane_hostname
       )
-      error_message = "Rail 3 requires two distinct Cloudflare custom domains; the web domain and zone must be configured."
+      error_message = "Rail 3 requires two distinct Cloudflare custom domains, the Modal VM backend and a verified Access sidecar image ID."
     }
   }
 }

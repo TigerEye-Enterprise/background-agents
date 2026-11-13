@@ -35,10 +35,13 @@ module "modal_app" {
     },
     {
       name = "internal-api"
-      values = {
+      values = merge({
         MODAL_API_SECRET            = var.modal_api_secret
         ALLOWED_CONTROL_PLANE_HOSTS = local.control_plane_host
-      }
+        }, var.rail3_access == null ? {} : {
+        RAIL3_CONTROL_ORIGIN          = local.control_plane_url
+        RAIL3_ACCESS_SIDECAR_IMAGE_ID = var.rail3_access_sidecar_image_id
+      })
     }
   ]
 }

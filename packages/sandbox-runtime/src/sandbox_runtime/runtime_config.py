@@ -40,8 +40,9 @@ def _freeze_json(value: Any) -> Any:
     return value
 
 
-def _validate_control_plane_url(url: str) -> None:
-    if not url:
+def _validate_control_plane_url(url: str, *, rail3_sidecar: bool = False) -> None:
+    # Modal resolves this fixed sidecar name only on the VM's private bridge.
+    if not url or (rail3_sidecar and url == "http://rail3-access:8788"):
         return
     parsed = urlsplit(url)
     if parsed.scheme == "https" and parsed.hostname:
@@ -136,7 +137,9 @@ class RuntimeConfig:
         session_config = _freeze_json(parsed_session_config)
         repo_path = workspace_path / repo_name if repo_owner and repo_name else workspace_path
         control_plane_url = environment.get("CONTROL_PLANE_URL", "")
-        _validate_control_plane_url(control_plane_url)
+        _validate_control_plane_url(
+            control_plane_url, rail3_sidecar=environment.get("RAIL3_ACCESS_SIDECAR") == "true"
+        )
         return cls(
             sandbox_id=environment.get("SANDBOX_ID", "unknown"),
             control_plane_url=control_plane_url,

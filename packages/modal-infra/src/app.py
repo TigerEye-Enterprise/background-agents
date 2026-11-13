@@ -33,7 +33,7 @@ function_image = (
         "pydantic>=2.0",
         "httpx",
         "fastapi",
-        "modal",  # Required for sandbox.manager imports
+        "modal==1.6.3",  # Match the deploy SDK for sandbox operations
     )
     # Bundle sandbox_runtime so modal-infra shims can import from it at runtime
     .add_local_dir(str(_SANDBOX_RUNTIME_DIR), remote_path="/root/sandbox_runtime", copy=True)
