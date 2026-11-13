@@ -85,7 +85,7 @@ async def _call_create_sandbox(request: dict, *, with_identity: bool = True, **h
         "x_sandbox_id": None,
         **headers,
     }
-    return await web_api.api_create_sandbox.get_raw_f()(
+    return await web_api.api_create_sandbox.local(
         {**VCS_IDENTITY, **request} if with_identity else request,
         **request_headers,
     )
@@ -100,7 +100,7 @@ async def _call_restore_sandbox(request: dict, *, with_identity: bool = True, **
         "x_sandbox_id": None,
         **headers,
     }
-    return await web_api.api_restore_sandbox.get_raw_f()(
+    return await web_api.api_restore_sandbox.local(
         {**VCS_IDENTITY, **request} if with_identity else request,
         **request_headers,
     )

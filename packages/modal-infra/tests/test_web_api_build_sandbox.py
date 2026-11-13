@@ -194,7 +194,7 @@ VCS_IDENTITY = {"clone_host": "github.com", "clone_username": "x-access-token"}
 async def _call(endpoint, request: dict) -> dict:
     if endpoint is web_api.api_create_build_sandbox:
         request = {**VCS_IDENTITY, **request}
-    return await endpoint.get_raw_f()(
+    return await endpoint.local(
         request,
         authorization="Bearer test",
         x_trace_id=None,
@@ -203,7 +203,7 @@ async def _call(endpoint, request: dict) -> dict:
 
 
 async def _call_generic_snapshot(request: dict) -> dict:
-    return await web_api.api_snapshot_sandbox.get_raw_f()(
+    return await web_api.api_snapshot_sandbox.local(
         request,
         authorization="Bearer test",
         x_trace_id=None,
@@ -214,7 +214,7 @@ async def _call_generic_snapshot(request: dict) -> dict:
 
 
 async def _call_vm_snapshot(request: dict) -> dict:
-    return await web_api.api_snapshot_vm_sandbox.get_raw_f()(
+    return await web_api.api_snapshot_vm_sandbox.local(
         request,
         authorization="Bearer test",
         x_trace_id=None,
@@ -225,7 +225,7 @@ async def _call_vm_snapshot(request: dict) -> dict:
 
 
 async def _call_generic_stop(request: dict) -> dict:
-    return await web_api.api_stop_sandbox.get_raw_f()(
+    return await web_api.api_stop_sandbox.local(
         request,
         authorization="Bearer test",
         x_trace_id=None,
