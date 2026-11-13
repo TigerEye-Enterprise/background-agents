@@ -23,3 +23,7 @@ Before activating Rail 3:
    service binding, and the authorized webhook. Check that the webhook audience cannot reach
    ordinary control-plane paths. Record the Cloudflare deployment/version IDs and results before
    running a docs pilot. Merge remains Mergify-only.
+
+The live receipt must record both deployment versions, the exact fork commit, and the positive and
+negative Access results before dispatch. An unauthenticated redirect alone does not prove the
+browser, sandbox, or webhook can complete an authenticated request.
