@@ -83,7 +83,7 @@ async def test_stop_pending_vm_reference_keeps_provider_errors_distinct(monkeypa
 
 def test_session_launch_endpoints_declare_materialization_timeout():
     for endpoint in (web_api.api_create_sandbox, web_api.api_restore_sandbox):
-        assert "timeout=150" in endpoint.get_build_def()
+        assert "timeout=150" in endpoint._get_build_def()
 
 
 REPOSITORIES = [{"repo_owner": "acme", "repo_name": "repo", "branch": "main"}]

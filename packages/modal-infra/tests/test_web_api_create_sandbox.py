@@ -162,7 +162,7 @@ async def test_sandbox_requests_reject_invalid_typed_fields(monkeypatch, call, p
 
 @pytest.mark.parametrize("endpoint", [web_api.api_create_sandbox, web_api.api_restore_sandbox])
 def test_sandbox_endpoints_do_not_bind_github_app_secrets(endpoint):
-    assert [secret.name for secret in endpoint.spec.secrets] == [
+    assert [secret.name for secret in endpoint._spec_.secrets] == [
         "internal-api",
     ]
 
