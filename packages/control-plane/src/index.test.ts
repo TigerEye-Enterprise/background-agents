@@ -4,6 +4,7 @@ import type { WorkerBindings } from "./cloudflare/platform";
 
 // Node unit tests exercise the Worker entrypoint without loading workerd's DO base class.
 vi.mock("./cloudflare/durable-object", () => ({ SessionDO: class {} }));
+vi.mock("cloudflare:workers", () => ({ WorkerEntrypoint: class {} }));
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -38,6 +39,31 @@ describe("WebSocket session location hint", () => {
       }
       expect(fetch).toHaveBeenCalledExactlyOnceWith(request);
       expect(warn).toHaveBeenCalledTimes(value === "invalid" ? 1 : 0);
+    }
+  );
+});
+
+describe("Rail 3 public ingress", () => {
+  it.each([
+    ["https://control.test/health", {}],
+    ["https://control.test/webhooks/automation/test", { "Cf-Access-Jwt-Assertion": "invalid" }],
+    ["https://control.test/sessions/session-id/ws", { Upgrade: "websocket" }],
+  ] as [string, HeadersInit][])(
+    "rejects unauthorized traffic before application routing (%s)",
+    async (url, headers) => {
+      const request = new Request(url, { headers });
+      const response = await worker.fetch(
+        request,
+        {
+          RAIL3_ACCESS_REQUIRED: "true",
+          RAIL3_ACCESS_ISSUER: "https://rail3-test.cloudflareaccess.com",
+          RAIL3_CONTROL_AUDIENCE: "control",
+          RAIL3_WEBHOOK_AUDIENCE: "webhook",
+          RAIL3_WEBHOOK_PATH: "/webhooks/automation/test",
+        } as WorkerBindings,
+        {} as ExecutionContext
+      );
+      expect(response.status).toBe(403);
     }
   );
 });
