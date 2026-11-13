@@ -43,6 +43,22 @@ else:
     from src.sandbox.launch_policy import launch_kwargs, parse_launch
 
 
+def build_rail3_access_sidecar() -> None:
+    """Build the reviewed, credential-free image; emit only its immutable image ID."""
+    image = (
+        modal.Image.debian_slim(python_version="3.12")
+        .pip_install("aiohttp==3.14.5")
+        .add_local_file(
+            str(Path(__file__).parent / "src" / "rail3_sidecar.py"),
+            "/app/rail3_sidecar.py",
+            copy=True,
+        )
+    )
+    deployed_app = modal.App.lookup(APP_NAME, create_if_missing=True)
+    image.build(deployed_app)
+    print(image.object_id)
+
+
 def _verify_image(sandbox: modal.Sandbox, *scripts: tuple[str, ...]) -> None:
     for script in scripts:
         process = sandbox.exec("/opt/openinspect/python/bin/python", *script, timeout=240)
@@ -148,7 +164,9 @@ def main() -> None:
         build_sandbox_image(with_docker=os.environ.get("BUILD_MODAL_VM_IMAGE") == "true")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and sys.argv[1:] == ["--build-rail3-access-sidecar"]:
+    build_rail3_access_sidecar()
+elif __name__ == "__main__":
     main()
 
 # Re-export the app for Modal

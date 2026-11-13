@@ -13,11 +13,17 @@ Before activating Rail 3:
 2. Admit browser WebSockets on the control-plane hostname and confirm the browser gets the
    control-plane audience. The web Worker uses a named Cloudflare service binding internally; normal
    control-plane authorization still applies there.
-3. Resolve Modal's outbound authentication before activation. The sandbox opens its own WebSocket
-   and makes HTTP requests to the control plane for repository credentials, media, and PR tooling.
-   Existing application credentials do not satisfy Access. Keep a distinct, scoped machine policy
-   and credential delivery boundary; do not reuse the webhook credential or add an anonymous path.
-   Until this path is verified, no live sandbox or docs pilot is admitted.
+3. In the admitted Modal workspace, build the credential-free sidecar with
+   `uv run --frozen python deploy.py --build-rail3-access-sidecar` from `packages/modal-infra`. Pass
+   its immutable image ID as `rail3_access_sidecar_image_id`. Give a dedicated Modal service token
+   access to the control-plane application only, separate from the webhook application. Project its
+   two Cloudflare Access fields from OpenBao into the named Modal Secret
+   `rail3-control-plane-access`. Only the sidecar receives the secret. The sidecar is restricted to
+   the exact control-plane hostname, forwards an allowlist of current-session routes, and keeps
+   existing session authorization in place. Main sandbox egress settings are unchanged. Verify both
+   HTTP and WebSocket callbacks from a real VM, and verify the agent cannot read the Access
+   credential or reach the webhook through the sidecar, before the docs pilot.
+
 4. Verify that neither Worker serves a public workers.dev or preview URL. Test missing, invalid and
    wrong-audience assertions on the protected endpoints, then validate a signed-in browser session,
    service binding, and the authorized webhook. Check that the webhook audience cannot reach

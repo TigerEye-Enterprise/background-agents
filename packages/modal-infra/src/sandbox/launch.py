@@ -2,6 +2,8 @@
 
 import functools
 import json
+import os
+import re
 import secrets
 import time
 from dataclasses import dataclass
@@ -55,6 +57,9 @@ _RESERVED_LAUNCH_ENV_VARS = {
     "TERMINAL_ENABLED",
     "AGENT_SLACK_NOTIFY_ENABLED",
     "SESSION_CONFIG",
+    "CF_ACCESS_CLIENT_ID",
+    "CF_ACCESS_CLIENT_SECRET",
+    "RAIL3_ACCESS_SIDECAR",
     "CODE_SERVER_PASSWORD",
     CODE_SERVER_PORT_ENV_VAR,
     TTYD_PROXY_PORT_ENV_VAR,
@@ -98,9 +103,12 @@ async def _create_sandbox(
 ) -> modal.Sandbox:
     """Only a missing repository image at create time is classified as unavailable."""
     try:
-        return await modal.Sandbox.create.aio(
-            "python", "-m", "sandbox_runtime.entrypoint", **create_kwargs
+        runtime = (
+            "sandbox_runtime.rail3_boot"
+            if create_kwargs["env"].get("RAIL3_ACCESS_SIDECAR") == "true"
+            else "sandbox_runtime.entrypoint"
         )
+        return await modal.Sandbox.create.aio("python", "-m", runtime, **create_kwargs)
     except modal.exception.NotFoundError as e:
         if repository_image:
             raise RepositoryImageUnavailableError("repository image is unavailable") from e
@@ -155,6 +163,18 @@ class SandboxLauncher:
             sandbox_id = f"sandbox-{sandbox_name}-{int(time.time() * 1000)}"
 
         docker = parse_launch(config.sandbox_backend, config.settings)
+        rail3_origin = os.environ.get("RAIL3_CONTROL_ORIGIN")
+        sidecar_image = os.environ.get("RAIL3_ACCESS_SIDECAR_IMAGE_ID")
+        session_id = _session_identity(config.session_config)
+        if rail3_origin is not None and (
+            not docker.enabled
+            or config.control_plane_url != rail3_origin
+            or not sidecar_image
+            or not re.fullmatch(r"[a-zA-Z0-9_-]+", session_id)
+        ):
+            raise ValueError(
+                "Rail 3 needs an admitted control-plane origin, VM session and sidecar image"
+            )
         env_vars = {
             key: value
             for key, value in (config.user_env_vars or {}).items()
@@ -164,7 +184,11 @@ class SandboxLauncher:
             {
                 "PYTHONUNBUFFERED": "1",
                 "SANDBOX_ID": sandbox_id,
-                "CONTROL_PLANE_URL": config.control_plane_url,
+                "CONTROL_PLANE_URL": (
+                    "http://rail3-access:8788"
+                    if rail3_origin is not None
+                    else config.control_plane_url
+                ),
                 "SANDBOX_AUTH_TOKEN": config.sandbox_auth_token,
                 SANDBOX_TIMEOUT_ENV_VAR: str(config.timeout_seconds),
                 "REPO_OWNER": config.repo_owner or "",
@@ -172,6 +196,9 @@ class SandboxLauncher:
                 **docker_runtime_env(docker),
             }
         )
+
+        if rail3_origin is not None:
+            env_vars["RAIL3_ACCESS_SIDECAR"] = "true"
 
         snapshot_id: str | None = None
         if isinstance(spec.source, BaseImageSource):
@@ -257,6 +284,16 @@ class SandboxLauncher:
                 vnc_password = passwords.get(VNC_PASSWORD_ENV_VAR)
         else:
             sandbox = await _create_sandbox(create_kwargs, repository_image=repository_image)
+        if rail3_origin is not None:
+            assert sidecar_image is not None
+            try:
+                await self._attach_rail3_sidecar(
+                    sandbox, origin=rail3_origin, session_id=session_id, image_id=sidecar_image
+                )
+            except Exception:
+                if not adopted:
+                    await terminate_and_wait(sandbox)
+                raise
         modal_object_id = sandbox.object_id
         urls = await tunnels.resolve(sandbox, sandbox_id)
 
@@ -347,6 +384,26 @@ class SandboxLauncher:
             modal_object_id=existing.object_id,
         )
         return existing, True
+
+    @staticmethod
+    async def _attach_rail3_sidecar(
+        sandbox: modal.Sandbox, *, origin: str, session_id: str, image_id: str
+    ) -> None:
+        sidecars = sandbox._experimental_sidecars
+        try:
+            await sidecars.create.aio(
+                "python",
+                "/app/rail3_sidecar.py",
+                name="rail3-access",
+                image=modal.Image.from_id(image_id),
+                env={"RAIL3_CONTROL_ORIGIN": origin, "RAIL3_SESSION_ID": session_id},
+                secrets=[modal.Secret.from_name("rail3-control-plane-access")],
+                outbound_domain_allowlist=[origin.removeprefix("https://")],
+            )
+        except modal.exception.AlreadyExistsError:
+            existing = await sidecars.get.aio(name="rail3-access")
+            if await existing.poll.aio() is not None:
+                raise RuntimeError("Rail 3 Access sidecar is not running") from None
 
     @staticmethod
     async def _read_access_passwords(
