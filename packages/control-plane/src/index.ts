@@ -4,6 +4,8 @@
  * Cloudflare Workers entry point with Durable Objects for session management.
  */
 
+import { allowsCloudflareAccess } from "@open-inspect/shared/cloudflare-access";
+import { WorkerEntrypoint } from "cloudflare:workers";
 import { handleControlPlaneHttp } from "./cloudflare/http-host";
 import { createLogger } from "./logger";
 import { consumeJobBatch } from "./cloudflare/job-queue";
@@ -31,21 +33,20 @@ export default {
     bindings: WorkerBindings,
     ctx: ExecutionContext
   ): Promise<Response> {
-    const url = new URL(request.url);
-    const env = createCloudflareEnv(bindings);
-
-    // WebSocket upgrade for session
-    const upgradeHeader = request.headers.get("Upgrade");
-    if (upgradeHeader?.toLowerCase() === "websocket") {
-      const metrics = createRequestMetrics();
-      // eslint-disable-next-line no-restricted-syntax -- composition root: construct the request-scoped database adapter
-      const db = instrumentSqlDatabase(bindings.DB, metrics);
-      return handleWebSocket(request, env, url, db, metrics);
+    if (bindings.RAIL3_ACCESS_REQUIRED !== undefined) {
+      const url = new URL(request.url);
+      const audience =
+        url.pathname === bindings.RAIL3_WEBHOOK_PATH
+          ? bindings.RAIL3_WEBHOOK_AUDIENCE
+          : bindings.RAIL3_CONTROL_AUDIENCE;
+      if (
+        bindings.RAIL3_ACCESS_REQUIRED !== "true" ||
+        !(await allowsCloudflareAccess(request, bindings.RAIL3_ACCESS_ISSUER, audience))
+      ) {
+        return new Response("Forbidden", { status: 403 });
+      }
     }
-
-    // Regular API request — Hono owns HTTP route selection while the neutral
-    // admission/dispatch pipeline retains authentication and authorization.
-    return handleControlPlaneHttp(request, env, ctx);
+    return dispatchControlPlane(request, bindings, ctx);
   },
 
   /**
@@ -92,6 +93,38 @@ export default {
     });
   },
 };
+
+// Only the authenticated web Worker has this named service binding. It cannot be routed over HTTP.
+export class Rail3WebInternal extends WorkerEntrypoint<WorkerBindings> {
+  async fetch(request: Request): Promise<Response> {
+    if (new URL(request.url).pathname === this.env.RAIL3_WEBHOOK_PATH) {
+      return new Response("Forbidden", { status: 403 });
+    }
+    return dispatchControlPlane(request, this.env, this.ctx);
+  }
+}
+
+async function dispatchControlPlane(
+  request: Request,
+  bindings: WorkerBindings,
+  ctx: ExecutionContext
+): Promise<Response> {
+  const url = new URL(request.url);
+  const env = createCloudflareEnv(bindings);
+
+  // WebSocket upgrade for session
+  const upgradeHeader = request.headers.get("Upgrade");
+  if (upgradeHeader?.toLowerCase() === "websocket") {
+    const metrics = createRequestMetrics();
+    // eslint-disable-next-line no-restricted-syntax -- composition root: construct the request-scoped database adapter
+    const db = instrumentSqlDatabase(bindings.DB, metrics);
+    return handleWebSocket(request, env, url, db, metrics);
+  }
+
+  // Regular API request — Hono owns HTTP route selection while the neutral
+  // admission/dispatch pipeline retains authentication and authorization.
+  return handleControlPlaneHttp(request, env, ctx);
+}
 
 /**
  * Handle WebSocket connections.

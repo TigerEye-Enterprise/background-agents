@@ -26,7 +26,7 @@ output "d1_database_name" {
 # Cloudflare Workers
 output "control_plane_url" {
   description = "Control plane worker URL"
-  value       = module.control_plane_worker.worker_url
+  value       = local.control_plane_url
 }
 
 output "control_plane_worker_name" {
@@ -135,7 +135,7 @@ output "verification_commands" {
   value       = <<-EOF
 
     # 1. Health check control plane
-    curl ${module.control_plane_worker.worker_url}/health
+    curl ${local.control_plane_url}/health
 
     # 2. Health check sandbox backend
     ${local.use_modal_backend ? "curl ${module.modal_app[0].api_health_url}" : local.use_vercel_backend ? "# Vercel sandboxes use the Vercel Sandbox API directly. Base snapshot: ${var.vercel_base_snapshot_id != "" ? var.vercel_base_snapshot_id : module.vercel_sandbox_infra[0].snapshot_name}" : local.use_boat_backend ? "# Boat sandboxes use the REST API directly. Saved snapshot: ${module.boat_infra[0].snapshot_name}" : "# Daytona and E2B sandboxes use their REST APIs directly — no health endpoint to check"}
@@ -144,7 +144,7 @@ output "verification_commands" {
     curl ${local.effective_web_app_url}
 
     # 4. Test authenticated endpoint (should return 401)
-    curl ${module.control_plane_worker.worker_url}/sessions
+    curl ${local.control_plane_url}/sessions
 
   EOF
 }

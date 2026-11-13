@@ -64,9 +64,10 @@ resource "cloudflare_worker" "this" {
   account_id = var.account_id
   name       = var.worker_name
 
-  # Enable workers.dev subdomain for direct access
+  # Keep upstream ingress defaults unless the deployment supplies protected custom ingress.
   subdomain = {
-    enabled = true
+    enabled          = !var.disable_public_subdomains
+    previews_enabled = var.disable_public_subdomains ? false : null
   }
 
   observability = {
