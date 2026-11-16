@@ -24,7 +24,6 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - "packages/docs/**" # Validate is a required check on docs PRs too.
       - "terraform/**"
       - "scripts/**"
       - "packages/control-plane/**"
