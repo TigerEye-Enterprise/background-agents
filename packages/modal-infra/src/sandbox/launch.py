@@ -30,6 +30,7 @@ from ..images.base import base_image
 from .launch_policy import (
     ALLOCATION_GENERATION_CREATED_AT_MS_TAG,
     ALLOCATION_SANDBOX_TAG,
+    RAIL3_SIDECAR_MEMORY_MIB,
     docker_allocation_name,
     docker_allocation_tags,
     docker_base_image,
@@ -399,6 +400,7 @@ class SandboxLauncher:
                 env={"RAIL3_CONTROL_ORIGIN": origin, "RAIL3_SESSION_ID": session_id},
                 secrets=[modal.Secret.from_name("rail3-control-plane-access")],
                 outbound_domain_allowlist=[origin.removeprefix("https://")],
+                experimental_memory_reserve_consume_mib=RAIL3_SIDECAR_MEMORY_MIB,
             )
         except modal.exception.AlreadyExistsError:
             existing = await sidecars.get.aio(name="rail3-access")

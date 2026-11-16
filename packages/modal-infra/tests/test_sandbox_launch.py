@@ -765,6 +765,7 @@ async def test_rail3_sidecar_receives_only_its_own_named_secret_and_destination(
     )
     kwargs = create.await_args.kwargs
     assert kwargs["outbound_domain_allowlist"] == ["control.example"]
+    assert kwargs["experimental_memory_reserve_consume_mib"] == 512
     assert kwargs["secrets"] == [credential]
     assert kwargs["env"] == {
         "RAIL3_CONTROL_ORIGIN": "https://control.example",
