@@ -714,6 +714,42 @@ async def test_launch_rejects_boolean_tunnel_ports(monkeypatch, restore, ports, 
 
 
 @pytest.mark.asyncio
+async def test_rail3_vm_reserves_access_memory_without_increasing_allocation(monkeypatch):
+    manager, captured, _ = _docker_manager(monkeypatch)
+    monkeypatch.setenv("RAIL3_CONTROL_ORIGIN", "https://control.example")
+    monkeypatch.setenv("RAIL3_ACCESS_SIDECAR_IMAGE_ID", "im-verified")
+    monkeypatch.setattr(
+        "src.sandbox.launch.modal.Sandbox.from_name",
+        SimpleNamespace(aio=AsyncMock(side_effect=_not_found)),
+    )
+    attach = AsyncMock()
+    monkeypatch.setattr(SandboxLauncher, "_attach_rail3_sidecar", attach)
+
+    await manager.create_sandbox(_docker_config(settings={}))
+
+    kwargs = captured["kwargs"]
+    sandbox_create_request(*captured["command"], **kwargs)
+    assert kwargs["experimental_options"] == {
+        "vm_runtime": True,
+        "vm_sidecar_memory_reserve_mib": 512,
+    }
+    assert kwargs["memory"] == (2048, 4096)
+    attach.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_rail3_vm_refuses_to_start_without_main_vm_memory(monkeypatch):
+    manager, captured, _ = _docker_manager(monkeypatch)
+    monkeypatch.setenv("RAIL3_CONTROL_ORIGIN", "https://control.example")
+    monkeypatch.setenv("RAIL3_ACCESS_SIDECAR_IMAGE_ID", "im-verified")
+
+    with pytest.raises(InvalidDockerSettingsError, match="at least 1536 MiB"):
+        await manager.create_sandbox(_docker_config(settings={"memoryMib": 1535}))
+
+    assert "kwargs" not in captured
+
+
+@pytest.mark.asyncio
 async def test_rail3_sidecar_receives_only_its_own_named_secret_and_destination(monkeypatch):
     from src.sandbox.launch import SandboxLauncher
 

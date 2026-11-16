@@ -25,6 +25,8 @@ VM_DEFAULT_CPU_CORES = 0.5
 VM_DEFAULT_MEMORY_MIB = 2048
 VM_DEFAULT_CPU_LIMIT_CORES = 2
 VM_DEFAULT_MEMORY_LIMIT_MIB = 4096
+RAIL3_SIDECAR_MEMORY_MIB = 512
+VM_MIN_MAIN_MEMORY_MIB = 1024
 MODAL_DEFAULT_CPU_CORES = 0.125
 MODAL_DEFAULT_MEMORY_MIB = 128
 MAX_RESOURCE_UINT32 = (1 << 32) - 1
@@ -119,11 +121,22 @@ def docker_base_image() -> modal.Image:
     return docker_image
 
 
-def launch_kwargs(launch: ModalLaunch) -> dict[str, Any]:
+def launch_kwargs(launch: ModalLaunch, *, rail3_sidecar: bool = False) -> dict[str, Any]:
     """One mapping for outer allocation resources and VM runtime selection."""
     result: dict[str, Any] = {}
     if launch.enabled:
         result["experimental_options"] = {"vm_runtime": True}
+    if rail3_sidecar:
+        # Modal carves the reserve out of the existing request and limit.
+        if (
+            not launch.enabled
+            or launch.memory_mib is None
+            or launch.memory_mib < VM_MIN_MAIN_MEMORY_MIB + RAIL3_SIDECAR_MEMORY_MIB
+        ):
+            raise InvalidDockerSettingsError(
+                "Rail 3 needs at least 1536 MiB: 1024 MiB for the VM and 512 MiB for Access"
+            )
+        result["experimental_options"]["vm_sidecar_memory_reserve_mib"] = RAIL3_SIDECAR_MEMORY_MIB
     if launch.cpu_cores is not None:
         result["cpu"] = (
             (launch.cpu_cores, launch.cpu_limit_cores)

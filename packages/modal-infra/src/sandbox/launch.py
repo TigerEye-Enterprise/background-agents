@@ -258,7 +258,7 @@ class SandboxLauncher:
             "timeout": config.timeout_seconds,
             "workdir": "/workspace",
             "env": env_vars,
-            **launch_kwargs(docker),
+            **launch_kwargs(docker, rail3_sidecar=rail3_origin is not None),
         }
         if tunnels.exposed_ports:
             create_kwargs["encrypted_ports"] = tunnels.exposed_ports

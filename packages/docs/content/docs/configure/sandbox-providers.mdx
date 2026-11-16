@@ -74,6 +74,7 @@ flowchart TB
 - Docker Engine and Compose are available on this Modal VM backend, not on default Modal or the other backends.
 - Session snapshots require shutdown, so per-turn snapshot requests are skipped; capture is attempted when the sandbox shuts down. Follow-ups can then restore saved state in a new sandbox.
 - Prebuilt images, CPU, memory, and sandbox timeout settings are supported.
+- When deploying with the Cloudflare Access sidecar, allow at least 1,536 MiB of sandbox memory. The sidecar reserves 512 MiB inside the existing allocation, leaving at least 1,024 MiB for the main VM.
 
 ## Daytona
 
