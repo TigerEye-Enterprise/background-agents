@@ -42,6 +42,11 @@ The AWS control plane can be deployed, but its runbook does not yet provide a su
 
 Terraform creates the infrastructure. The operator creates the accounts, gathers credentials, and supplies the required configuration and secret values for the chosen deployment; the Cloudflare/Vercel and AWS paths use different configuration.
 
+For Cloudflare and Modal, run Terraform from a Linux checkout. If you prepare the source on Windows,
+export it with Git line-ending conversion disabled: the D1 and Modal helpers are Bash scripts and
+need LF line endings. Supply Modal secret values through the deployment environment. The provisioner
+passes them directly to the Modal client; keep values out of command arguments, tfvars files, and logs.
+
 ## Sandbox providers
 
 A deployment runs on exactly one sandbox provider, chosen at setup:
