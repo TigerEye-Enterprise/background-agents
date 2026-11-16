@@ -1,67 +1,51 @@
 #!/usr/bin/env bash
-# Create or update Modal secrets
-# Required environment variables:
-#   MODAL_TOKEN_ID - Modal API token ID
-#   MODAL_TOKEN_SECRET - Modal API token secret
-#   MODAL_ENVIRONMENT - Modal environment to create secrets in
-#   DEPLOY_PATH - Path to the Modal app source (for uv project resolution)
-#   SECRETS_JSON - JSON array of secrets with format:
-#     [{"name": "secret-name", "values": {"KEY1": "value1", "KEY2": "value2"}}]
+# Create or update Modal secrets without passing the values as process arguments.
+# Terraform provides MODAL_TOKEN_ID, MODAL_TOKEN_SECRET, MODAL_ENVIRONMENT,
+# DEPLOY_PATH, and SECRETS_JSON in the environment.
 
 set -euo pipefail
 
-if [[ -z "${MODAL_ENVIRONMENT:-}" ]]; then
-    echo "Error: MODAL_ENVIRONMENT environment variable is not set"
-    exit 1
-fi
+uv run --directory "${DEPLOY_PATH:?DEPLOY_PATH is required}" python - <<'PYTHON'
+import json
+import os
+import re
 
-echo "Creating/updating Modal secrets in environment: ${MODAL_ENVIRONMENT}"
+from modal import Secret
 
-# Validate SECRETS_JSON is valid JSON
-if ! echo "${SECRETS_JSON}" | jq empty 2>/dev/null; then
-    echo "Error: SECRETS_JSON is not valid JSON"
-    exit 1
-fi
 
-# Process each secret
-echo "${SECRETS_JSON}" | jq -c '.[]' | while IFS= read -r secret; do
-    secret_name=$(echo "${secret}" | jq -r '.name')
+def valid_secret(entry):
+    return (
+        isinstance(entry, dict)
+        and isinstance(entry.get("name"), str)
+        and re.fullmatch(r"[a-zA-Z0-9_-]+", entry["name"])
+        and isinstance(entry.get("values"), dict)
+        and bool(entry["values"])
+        and all(
+            re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]*", key)
+            and isinstance(value, str)
+            for key, value in entry["values"].items()
+        )
+    )
 
-    # Validate secret name contains only safe characters
-    if [[ ! "${secret_name}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-        echo "Error: Invalid secret name '${secret_name}'. Only alphanumeric, underscore, and hyphen allowed."
-        exit 1
-    fi
 
-    echo "Processing secret: ${secret_name}"
+environment = os.environ.get("MODAL_ENVIRONMENT")
+if not environment:
+    raise SystemExit("MODAL_ENVIRONMENT is required")
 
-    # Build array of key=value arguments
-    # Use mapfile to safely handle values with special characters
-    declare -a args=()
+try:
+    secrets = json.loads(os.environ.pop("SECRETS_JSON", ""))
+except json.JSONDecodeError:
+    raise SystemExit("Invalid SECRETS_JSON") from None
 
-    while IFS= read -r entry; do
-        key=$(echo "${entry}" | jq -r '.key')
-        value=$(echo "${entry}" | jq -r '.value')
+if not isinstance(secrets, list) or not all(valid_secret(entry) for entry in secrets):
+    raise SystemExit("Invalid Modal secret name or value map")
 
-        # Validate key contains only safe characters
-        if [[ ! "${key}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
-            echo "Error: Invalid key name '${key}'. Must be a valid environment variable name."
-            exit 1
-        fi
-
-        # Add to args array - modal CLI handles the value safely when passed as separate argument
-        args+=("${key}=${value}")
-    done < <(echo "${secret}" | jq -c '.values | to_entries | .[]')
-
-    # Create or update the secret using array expansion
-    # The --force flag will update if it exists. A failure must abort the apply:
-    # Terraform would otherwise record the new secrets hash and never retry,
-    # leaving a cleared credential in place.
-    if ! uv run --directory "${DEPLOY_PATH}" modal secret create "${secret_name}" "${args[@]}" --force; then
-        echo "Error: Failed to create secret ${secret_name}"
-        exit 1
-    fi
-    echo "Secret ${secret_name} created/updated successfully"
-done
-
-echo "All Modal secrets processed successfully"
+for entry in secrets:
+    name = entry["name"]
+    try:
+        # Modal 1.6.3's CLI uses this SDK call for atomic --force replacement.
+        Secret._create_deployed(name, entry["values"], environment_name=environment, overwrite=True)
+    except Exception as exc:
+        raise SystemExit(f"Failed to provision Modal secret {name}: {type(exc).__name__}") from None
+    print(f"Provisioned Modal secret {name}")
+PYTHON
