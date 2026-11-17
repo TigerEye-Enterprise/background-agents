@@ -47,6 +47,10 @@ export it with Git line-ending conversion disabled: the D1 and Modal helpers are
 need LF line endings. Supply Modal secret values through the deployment environment. The provisioner
 passes them directly to the Modal client; keep values out of command arguments, tfvars files, and logs.
 
+For Access-protected deployments, verify the web and API custom hostnames separately. Confirm that
+`workers.dev` and preview routes are closed to unauthorized requests, and use the appropriate Access
+identity when performing authorized health checks.
+
 ## Sandbox providers
 
 A deployment runs on exactly one sandbox provider, chosen at setup:
